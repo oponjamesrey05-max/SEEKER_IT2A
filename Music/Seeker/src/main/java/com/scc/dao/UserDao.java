@@ -1,5 +1,7 @@
 package com.scc.dao;
 
+import com.scc.model.User;
+
 import java.sql.*;
 
 public class UserDao {
@@ -54,7 +56,49 @@ public class UserDao {
         }
     }
 
+    public User login(String full_name, String password){
 
+        String sql = "SELECT user_id, full_name, email, password, role, status, date_created "
+                + "FROM Users WHERE full_name = ? AND password = ?";
+
+        try(Connection conn = DatabaseConnection.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql)){
+
+
+            pstmt.setString(1, full_name);
+            pstmt.setString(2, password);
+
+           try(ResultSet rs = pstmt.executeQuery()) {
+               if (rs.next()) {
+                   String status = rs.getString("status");
+                   if ("PENDING".equalsIgnoreCase(status)) {
+                       System.out.println(" -- Account is pending, waiting for Approval");
+                       return null;
+                   }
+                   return new User(
+                           rs.getInt("user_id"),
+                           rs.getString("full_name"),
+                           rs.getString("email"),
+                           rs.getString("password"),
+                           rs.getString("role"),
+                           status,
+                           rs.getString("date_created")
+                   );
+
+               } else {
+                   System.out.println(" -- INVALID username or password -- ");
+               }
+
+           }
+
+           }catch(SQLException e){
+               System.err.println("Error during login: " + e.getMessage());
+
+
+           } return null;
+
+
+    }
 
 
 }

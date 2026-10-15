@@ -2,6 +2,8 @@ package com.scc;
 
 import java.util.Scanner;
 import com.scc.dao.UserDao;
+import com.scc.model.User;
+import com.scc.ui.AdminMenu;
 
 public class Main {
 
@@ -29,7 +31,7 @@ public class Main {
             switch (choice) {
 
                 case "1":
-                    // Log In feature will be added later
+                    handleLogin(scanner, userDao);
                     break;
 
                 case "2":
@@ -82,5 +84,24 @@ public class Main {
         }
 
         scanner.close();
+    }
+
+    private static void handleLogin(Scanner scanner, UserDao userDao){
+        System.out.print("Enter username: ");
+        String username = scanner.nextLine();
+        System.out.print("Enter Password: ");
+        String password = scanner.nextLine();
+
+        User user = userDao.login(username, password);
+
+        if(user != null){
+            System.out.println("\n -- WELCOME --" +user.full_name()+" | ROLE: "+user.role()+"");
+            switch (user.role()){
+                case "Administrator" ->  new AdminMenu(userDao, scanner).display(user);
+                default -> System.out.println(" -- Account role not found! -- ");
+            }
+
+        }
+
     }
 }

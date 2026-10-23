@@ -3,6 +3,8 @@ package com.scc.dao;
 import com.scc.model.User;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDao {
 
@@ -14,7 +16,7 @@ public class UserDao {
             defaultAdminGenerator(conn);
 
         }catch(SQLException e){
-                System.err.println("Error seeding default admin: " + e.getMessage());
+            System.err.println("Error seeding default admin: " + e.getMessage());
         }
     }
 
@@ -68,37 +70,57 @@ public class UserDao {
             pstmt.setString(1, full_name);
             pstmt.setString(2, password);
 
-           try(ResultSet rs = pstmt.executeQuery()) {
-               if (rs.next()) {
-                   String status = rs.getString("status");
-                   if ("PENDING".equalsIgnoreCase(status)) {
-                       System.out.println(" -- Account is pending, waiting for Approval");
-                       return null;
-                   }
-                   return new User(
-                           rs.getInt("user_id"),
-                           rs.getString("full_name"),
-                           rs.getString("email"),
-                           rs.getString("password"),
-                           rs.getString("role"),
-                           status,
-                           rs.getString("date_created")
-                   );
-
-               } else {
-                   System.out.println(" -- INVALID username or password -- ");
-               }
-
-           }
-
-           }catch(SQLException e){
-               System.err.println("Error during login: " + e.getMessage());
-
-
-           } return null;
-
+            try(ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    String status = rs.getString("status");
+                    if ("PENDING".equalsIgnoreCase(status)) {
+                        System.out.println(" -- Account is pending, waiting for Approval");
+                        return null;
+                    }
+                    return new User(
+                            rs.getInt("user_id"),
+                            rs.getString("full_name"),
+                            rs.getString("email"),
+                            rs.getString("password"),
+                            rs.getString("role"),
+                            status,
+                            rs.getString("date_created")
+                    );
+                } else {
+                    System.out.println(" -- INVALID username or password -- ");
+                }
+            }
+        }catch(SQLException e){
+            System.err.println("Error during login: " + e.getMessage());
+        } return null;
 
     }
 
+    public List<User> getAllUser(){
+        List<User> userList = new ArrayList<>();
+        String sql = "SELECT user_id, full_name, email, password, role, status, date_created FROM Users";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()){
+                userList.add(new User(
+                        rs.getInt("user_id"),
+                        rs.getString("full_name"),
+                        rs.getString("email"),
+                        rs.getString("password"),
+                        rs.getString("role"),
+                        rs.getString("status"),
+                        rs.getString("date_created")
+                ));
+            }
+
+        } catch (SQLException e) {
+            System.err.println("Error fetching all users: " + e.getMessage());
+        }
+
+        return userList;
+    }
 
 }

@@ -34,6 +34,9 @@ public class AdminMenu {
 
             switch (choice){
                 case "1" -> viewAllUser();
+                case "2" -> viewPendingUsers();
+                case "3" -> approveUser();
+
                 case "7" -> {
                     loggedIn = false;
                     System.out.println(" -- Logged out. Goodbye, " + admin.full_name() + "!");
@@ -82,6 +85,43 @@ public class AdminMenu {
 
     private void viewAllUser(){
         displayUserTable(userDao.getAllUser(), " ALL REGISTERED USERS ");
+    }
+
+    private void viewPendingUsers(){
+        displayUserTable(userDao.getPendingUser(), "PENDING APPROVALS");
+
+    }
+
+    private void approveUser(){
+        List<User> pendingUsers = userDao.getPendingUser();
+        displayUserTable(pendingUsers, " PENDING APPROVALS ");
+
+        if(pendingUsers.isEmpty()){
+            return;
+        }
+
+        System.out.print("Enter User ID to approve (or 0 to cancel): ");
+
+        int userId;
+        try {
+            userId = Integer.parseInt(scanner.nextLine().trim());
+        } catch (NumberFormatException e) {
+            System.out.println(" -- [ERROR] Please enter a valid number.");
+            return;
+        }
+
+        if(userId == 0){
+            System.out.println(" -- Operation cancelled.");
+            return;
+        }
+
+        boolean exists = pendingUsers.stream().anyMatch(user -> user.user_id() == userId);
+        if(!exists){
+            System.out.println(" -- [ERROR] User ID not found in the pending list.");
+            return;
+        }
+
+        userDao.approveUser(userId);
     }
 
 }

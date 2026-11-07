@@ -1,14 +1,18 @@
 package com.scc.ui;
 
+import com.scc.dao.ActivityLogDao;
 import com.scc.dao.UserDao;
+import com.scc.model.ActivityLog;
 import com.scc.model.User;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
 public class AdminMenu {
     private final UserDao userDao;
     private final Scanner scanner;
+    private final ActivityLogDao logDao = new ActivityLogDao();
 
     public AdminMenu(UserDao userDao, Scanner scanner){
         this.userDao = userDao;
@@ -27,7 +31,8 @@ public class AdminMenu {
             System.out.println("4. Add New User");
             System.out.println("5. Update User Role/ Status");
             System.out.println("6. Delete User Account");
-            System.out.println("7. Logout");
+            System.out.println("7. View System Audit Logs");
+            System.out.println("8. Logout");
             System.out.print("Enter Choice: ");
 
             String choice = scanner.nextLine().trim();
@@ -35,10 +40,11 @@ public class AdminMenu {
             switch (choice){
                 case "1" -> viewAllUser();
                 case "2" -> viewPendingUsers();
-                case "3" -> approveUser();
+                case "3" -> approveUser(admin);
                 case "5" -> updateUser(admin);
+                case "7" -> auditLogMenu(admin);
 
-                case "7" -> {
+                case "8" -> {
                     loggedIn = false;
                     System.out.println(" -- Logged out. Goodbye, " + admin.full_name() + "!");
                 }
@@ -93,7 +99,7 @@ public class AdminMenu {
 
     }
 
-    private void approveUser(){
+    private void approveUser(User admin){
         List<User> pendingUsers = userDao.getPendingUser();
         displayUserTable(pendingUsers, " PENDING APPROVALS ");
 
@@ -122,7 +128,10 @@ public class AdminMenu {
             return;
         }
 
-        userDao.approveUser(userId);
+        if(userDao.approveUser(userId)){
+            logDao.logAction(admin.user_id(), "USER_APPROVED",
+                    "Admin [" + admin.user_id() + "] approved account for User ID " + userId);
+        }
     }
 
     private void updateUser(User currentAdmin){
@@ -159,7 +168,11 @@ public class AdminMenu {
             return;
         }
 
-        userDao.updateUserAndStatus(user_id, newRole, newStatus);
+        if(userDao.updateUserAndStatus(user_id, newRole, newStatus)){
+            logDao.logAction(currentAdmin.user_id(), "USER_UPDATED",
+                    "Admin [" + currentAdmin.user_id() + "] changed role of User " + user_id
+                            + " to " + newRole + " and status to " + newStatus);
+        }
 
     }
 
@@ -210,5 +223,135 @@ public class AdminMenu {
 
     }
 
+    // ------------------------------------------------------------------
+    // SYSTEM AUDIT LOGS
+    // ------------------------------------------------------------------
+
+    private void auditLogMenu(User admin){
+        boolean back = false;
+
+        while (!back){
+            System.out.println("\n--- SYSTEM AUDIT LOGS ---");
+            System.out.println("1. View All System Logs");
+            System.out.println("2. Filter Logs by User ID");
+            System.out.println("3. Clear All Logs");
+            System.out.println("0. Back");
+            System.out.print("Enter choice: ");
+
+            switch (scanner.nextLine().trim()){
+                case "1" -> displayLogTable(logDao.getAllLogs(), " ALL SYSTEM LOGS ");
+                case "2" -> filterLogsByUser();
+                case "3" -> clearLogs(admin);
+                case "0" -> back = true;
+                default -> System.out.println(" -> [ERROR] Invalid Option.");
+            }
+        }
+    }
+
+    private void filterLogsByUser(){
+        int userId = readIntInput("Enter User ID to filter (or 0 to cancel): ");
+
+        if(userId == 0){
+            System.out.println(" -> Operation Cancelled.");
+            return;
+        }
+
+        displayLogTable(logDao.getLogsByUserId(userId), " LOGS FOR USER ID " + userId + " ");
+    }
+
+    private void clearLogs(User admin){
+        System.out.print("This will permanently delete ALL logs. Type YES to confirm: ");
+
+        if(!scanner.nextLine().trim().equals("YES")){
+            System.out.println(" -> Operation Cancelled. No logs were deleted.");
+            return;
+        }
+
+        int deleted = logDao.clearLogs();
+
+        if(deleted >= 0){
+            System.out.println(" -> " + deleted + " log entries cleared.");
+            // the clearing itself is recorded, so the audit trail is never silently empty
+            logDao.logAction(admin.user_id(), "LOGS_CLEARED",
+                    "Admin [" + admin.user_id() + "] cleared " + deleted + " log entries");
+        }
+    }
+
+    private void displayLogTable(List<ActivityLog> logs, String title){
+        System.out.println("\n=====================" + title + "========================");
+        if (logs.isEmpty()){
+            System.out.println("-- No Records Found");
+            return;
+        }
+
+        // column widths: ID, USER ID, ACTION TYPE, DESCRIPTION, TIMESTAMP
+        String border = "+" + "-".repeat(7) + "+" + "-".repeat(10) + "+" + "-".repeat(20)
+                + "+" + "-".repeat(37) + "+" + "-".repeat(22) + "+";
+        String format = "| %-5s | %-8s | %-18s | %-35s | %-20s |%n";
+
+        System.out.println(border);
+        System.out.printf(format, "ID", "USER ID", "ACTION TYPE", "DESCRIPTION", "TIMESTAMP");
+        System.out.println(border);
+
+        for (ActivityLog log : logs){
+            // long descriptions continue on extra lines instead of being cut off
+            List<String> lines = wrap(log.description(), 35);
+
+            for (int i = 0; i < lines.size(); i++){
+                if (i == 0){
+                    System.out.printf(format,
+                            log.log_id(),
+                            log.user_id(),
+                            cut(log.action_type(), 18),
+                            lines.get(i),
+                            cut(log.timestamp(), 20));
+                } else {
+                    System.out.printf(format, "", "", "", lines.get(i), "");
+                }
+            }
+        }
+
+        System.out.println(border);
+        System.out.println("Total: " + logs.size());
+    }
+
+    // splits text into lines of at most `width` characters, breaking at spaces
+    private List<String> wrap(String text, int width){
+        List<String> lines = new ArrayList<>();
+
+        if (text == null || text.isEmpty()){
+            lines.add("");
+            return lines;
+        }
+
+        StringBuilder line = new StringBuilder();
+
+        for (String word : text.split(" ")){
+            while (word.length() > width){
+                if (line.length() > 0){
+                    lines.add(line.toString());
+                    line.setLength(0);
+                }
+                lines.add(word.substring(0, width));
+                word = word.substring(width);
+            }
+
+            if (line.length() > 0 && line.length() + 1 + word.length() > width){
+                lines.add(line.toString());
+                line.setLength(0);
+            }
+
+            if (line.length() > 0){
+                line.append(' ');
+            }
+            line.append(word);
+        }
+
+        if (line.length() > 0){
+            lines.add(line.toString());
+        }
+
+        return lines;
+    }
 
 }

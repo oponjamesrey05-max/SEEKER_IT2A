@@ -163,7 +163,7 @@ public class UserDao {
             int rowsUpdated = pstmt.executeUpdate();
 
             if(rowsUpdated > 0){
-                System.out.println(" -- User ID: "+userId+" approved successfully! --");
+                System.out.println(" -- User ID: "+userId+" has been set as ACTIVE successfully! --");
                 return true;
             }else{
                 System.out.println(" -- ID not found. ");
@@ -174,6 +174,62 @@ public class UserDao {
         }
 
         return false;
+    }
+
+    public boolean updateUserAndStatus (int user_id, String newRole, String newStatus){
+
+        String role = normalizeRole(newRole.toUpperCase());
+        String status = normalizeStatus(newStatus.toUpperCase());
+
+        if(role == null || status == null){
+            System.out.println(" -> [ERROR] Invalid role or status.");
+            return false;
+        }
+
+        String sql = "UPDATE Users SET role = ?, status = ? WHERE user_id = ?";
+
+        try(
+                Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)){
+
+            pstmt.setString(1, role);
+            pstmt.setString(2, status);
+            pstmt.setInt(3, user_id);
+
+            int rowsUpdated = pstmt.executeUpdate();
+
+            if(rowsUpdated > 0){
+                System.out.println(" -> User ID: "+user_id+" updated successfully!");
+                return true;
+            }else{
+                System.out.println(" -> User ID not found.");
+            }
+            return false;
+        } catch (SQLException e) {
+            System.err.println("Error updating user: "+e.getMessage());
+        }
+        return false;
+
+    }
+
+    private String normalizeRole(String upperInput){
+        return switch (upperInput){
+            case "ADMINISTRATOR" -> "Administrator";
+            case "EMPLOYER" -> "Employer";
+            case "STUDENT FREELANCER" -> "Student Freelancer";
+            case "STUDENT EMPLOYMENT LIAISON" -> "Student Employment Liaison";
+            default -> null;
+        };
+    }
+
+    private String normalizeStatus(String upperInput){
+        return switch (upperInput){
+            case "PENDING" -> "Pending";
+            case "ACTIVE" -> "Active";
+            case "INACTIVE" -> "Inactive";
+            case "DEACTIVATED" -> "Deactivated";
+            default -> null;
+        };
     }
 
 }
